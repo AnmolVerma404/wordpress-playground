@@ -58,6 +58,15 @@ describe('saved Playground state selectors', () => {
 		expect(storedSites).toEqual([newerStoredSite, olderStoredSite]);
 		expect(selectSortedStoredSites(state)).toBe(storedSites);
 	});
+
+	it('initializes without circular dependency errors when slice-sites is imported before store', async () => {
+		vi.resetModules();
+		const sliceSites = await import('./slice-sites');
+		const storeModule = await import('./store');
+
+		expect(typeof sliceSites.setOPFSSitesLoadingState).toBe('function');
+		expect(storeModule.default.getState().sites).toBeDefined();
+	});
 });
 
 describe('You Have Autosave nudge preference', () => {

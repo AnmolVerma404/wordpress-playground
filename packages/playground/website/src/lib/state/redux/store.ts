@@ -1,22 +1,28 @@
 import { configureStore, createSelector } from '@reduxjs/toolkit';
-import type { SiteError, SerializedSiteErrorDetails } from './slice-ui';
-import uiReducer, {
-	__internal_uiSlice,
-	listenToOnlineOfflineEventsMiddleware,
-} from './slice-ui';
+import uiReducer, { listenToOnlineOfflineEventsMiddleware } from './slice-ui';
 import { siteManagementMiddleware } from './site-management-api-middleware';
 import { mcpBridgeMiddleware } from './init-mcp-bridge';
-import type { SiteInfo } from './slice-sites';
 import sitesReducer, {
 	isStoredSite,
-	selectSiteBySlug,
 	selectTemporarySite,
 	selectTemporarySites,
 } from './slice-sites';
-import { PlaygroundRoute, redirectTo } from '../url/router';
+import {
+	selectActiveSite,
+	selectActiveSiteError,
+	selectActiveSiteErrorDetails,
+	setActiveSite,
+} from './active-site';
 import type { ClientInfo } from './slice-clients';
 import clientsReducer, { selectAllClientInfo } from './slice-clients';
 import { useDispatch, useSelector } from 'react-redux';
+
+export {
+	selectActiveSite,
+	selectActiveSiteError,
+	selectActiveSiteErrorDetails,
+	setActiveSite,
+};
 
 // NOTE: A GetDefaultMiddleware type is not exported from @reduxjs/toolkit,
 // so we have to derive it from the configureStore() signature.
@@ -84,13 +90,6 @@ export function useAppDispatch() {
 	return useDispatch<PlaygroundDispatch>();
 }
 
-export const selectActiveSite = (
-	state: PlaygroundReduxState
-): SiteInfo | undefined =>
-	state.ui.activeSite?.slug
-		? state.sites.entities[state.ui.activeSite.slug]
-		: undefined;
-
 /**
  * Returns the active site only when it has durable storage. Autosaves count as
  * stored; callers that need an explicit save should use isExplicitlySavedSite.
@@ -100,16 +99,6 @@ export const selectActiveStoredSite = createSelector(
 	(activeSite) =>
 		activeSite && isStoredSite(activeSite) ? activeSite : undefined
 );
-
-export const selectActiveSiteError = (
-	state: PlaygroundReduxState
-): SiteError | undefined =>
-	state.ui.activeSite?.slug ? state.ui.activeSite.error : undefined;
-
-export const selectActiveSiteErrorDetails = (
-	state: PlaygroundReduxState
-): SerializedSiteErrorDetails | undefined =>
-	state.ui.activeSite?.slug ? state.ui.activeSite.errorDetails : undefined;
 
 export const useActiveSite = () => useAppSelector(selectActiveSite);
 
@@ -150,27 +139,6 @@ export function setYouHaveAutosaveNudgeEnabled(enabled: boolean): void {
  * Returns the temporary site for the current browser session, when one exists.
  */
 export const useTemporarySite = () => useAppSelector(selectTemporarySite);
-
-export const setActiveSite = (
-	slug: string | undefined,
-	options: { updateUrl?: boolean } = {}
-) => {
-	return (
-		dispatch: PlaygroundDispatch,
-		getState: () => PlaygroundReduxState
-	) => {
-		// Short-circuit if the provided slug already points to the active site.
-		const activeSite = selectActiveSite(getState());
-		if (activeSite?.slug === slug) {
-			return;
-		}
-		dispatch(__internal_uiSlice.actions.setActiveSite(slug));
-		if (slug && options.updateUrl !== false) {
-			const site = selectSiteBySlug(getState(), slug);
-			redirectTo(PlaygroundRoute.site(site));
-		}
-	};
-};
 
 export const getActiveClientInfo = (
 	state: PlaygroundReduxState

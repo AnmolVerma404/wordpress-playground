@@ -5,7 +5,7 @@ import {
 	createSelector,
 } from '@reduxjs/toolkit';
 import type { PlaygroundDispatch, PlaygroundReduxState } from './store';
-import { selectActiveSite, setActiveSite } from './store';
+import { selectActiveSite, setActiveSite } from './active-site';
 import { opfsSiteStorage } from '../opfs/opfs-site-storage';
 import type { OriginalUrlParams } from '../original-url-params';
 import {

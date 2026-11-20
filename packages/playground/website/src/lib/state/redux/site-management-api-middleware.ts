@@ -1,5 +1,5 @@
 import { useMemo } from 'react';
-import { useStore } from 'react-redux';
+import { useDispatch, useStore } from 'react-redux';
 import { createListenerMiddleware } from '@reduxjs/toolkit';
 import type { PlaygroundReduxState, PlaygroundDispatch } from './store';
 import {
@@ -7,8 +7,7 @@ import {
 	selectActiveSiteError,
 	selectActiveSiteErrorDetails,
 	setActiveSite,
-	useAppDispatch,
-} from './store';
+} from './active-site';
 import type { SerializedSiteErrorDetails, SiteError } from './slice-ui';
 import { setActiveSiteError, setSiteImportProgress } from './slice-ui';
 import {
@@ -1210,7 +1209,7 @@ startListening({
 
 export function useSitesAPI(): PlaygroundSitesAPI {
 	const store = useStore<PlaygroundReduxState>();
-	const dispatch = useAppDispatch();
+	const dispatch = useDispatch<PlaygroundDispatch>();
 	return useMemo(
 		() => createSitesAPI(store.getState, dispatch),
 		[store, dispatch]

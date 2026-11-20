@@ -90,7 +90,7 @@ describe('stored sites', () => {
 				payload,
 			})),
 		}));
-		vi.doMock('./store', () => ({
+		vi.doMock('./active-site', () => ({
 			selectActiveSite: vi.fn(),
 			setActiveSite: vi.fn((slug) => ({
 				type: 'ui/setActiveSite',
@@ -108,7 +108,7 @@ describe('stored sites', () => {
 		vi.doUnmock('../playground-identity');
 		vi.doUnmock('../url/resolve-blueprint-from-url');
 		vi.doUnmock('./slice-ui');
-		vi.doUnmock('./store');
+		vi.doUnmock('./active-site');
 	});
 
 	it('only classifies bootable autosaves as restorable', async () => {
@@ -377,7 +377,8 @@ describe('stored sites', () => {
 
 	it('selects the requested replacement once when removing the active site', async () => {
 		const { removeSite, sitesSlice } = await import('./slice-sites');
-		const { selectActiveSite, setActiveSite } = await import('./store');
+		const { selectActiveSite, setActiveSite } =
+			await import('./active-site');
 		const removedSite = createSiteInfo({ slug: 'failed-import' });
 		const previousSite = createSiteInfo({ slug: 'previous-site' });
 		const newerSite = createSiteInfo({ slug: 'newer-site' });
