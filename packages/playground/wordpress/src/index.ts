@@ -1,6 +1,12 @@
 import type { PHP, UniversalPHP } from '@php-wasm/universal';
 import { isLegacyPHPVersion } from '@php-wasm/universal';
-import { joinPaths, phpVar } from '@php-wasm/util';
+import {
+	dirname,
+	isParentOf,
+	joinPaths,
+	normalizePath,
+	phpVar,
+} from '@php-wasm/util';
 import { unzipFile, createMemoizedFetch } from '@wp-playground/common';
 import { logger } from '@php-wasm/logger';
 import { writeCommonPlatformMuPlugins } from './platform-mu-plugins';
@@ -358,9 +364,31 @@ export async function preloadPhpInfoRoute(
 	);
 }
 
+export type SqliteIntegrationPluginPath =
+	| 'internal'
+	| 'mu-plugins'
+	| 'plugins'
+	| (string & {});
+
 export interface SqliteIntegrationOptions {
 	phpVersion?: string;
+	/**
+	 * Where to place the SQLite integration plugin.
+	 *
+	 * - `'internal'` (default): mounts in `/internal/shared/sqlite-database-integration`
+	 *   and preloads virtually without writing `wp-content/db.php`.
+	 * - `'mu-plugins'`: installs into `wp-content/mu-plugins/sqlite-database-integration`
+	 *   and writes a portable `wp-content/db.php` drop-in.
+	 * - `'plugins'`: installs into `wp-content/plugins/sqlite-database-integration`
+	 *   and writes a portable `wp-content/db.php` drop-in.
+	 * - Any custom path (relative to `documentRoot` or absolute): installs there
+	 *   and writes a portable `wp-content/db.php` drop-in.
+	 */
+	sqliteIntegrationPluginPath?: SqliteIntegrationPluginPath;
 }
+
+const DEFAULT_INTERNAL_SQLITE_PLUGIN_FOLDER =
+	'/internal/shared/sqlite-database-integration';
 
 export async function preloadSqliteIntegration(
 	php: UniversalPHP,
@@ -377,14 +405,24 @@ export async function preloadSqliteIntegration(
 	}
 	await php.mkdir('/tmp/sqlite-database-integration');
 	await unzipFile(php, sqliteZip, '/tmp/sqlite-database-integration');
-	const SQLITE_PLUGIN_FOLDER = '/internal/shared/sqlite-database-integration';
+
+	const documentRoot = normalizePath(await php.documentRoot);
+	const { isOnDisk, pluginFolder } = resolveSqliteIntegrationPluginTarget(
+		documentRoot,
+		options.sqliteIntegrationPluginPath
+	);
 
 	// The SQLite integration plugin was extracted into the sole subdirectory
-	// of /tmp/sqlite-database-integration. Move it to SQLITE_PLUGIN_FOLDER.
-	const temporarySqlitePluginFolder = `/tmp/sqlite-database-integration/${
+	// of /tmp/sqlite-database-integration. Move it to pluginFolder.
+	const temporarySqlitePluginFolder = joinPaths(
+		'/tmp/sqlite-database-integration',
 		(await php.listFiles('/tmp/sqlite-database-integration'))[0]
-	}`;
-	await php.mv(temporarySqlitePluginFolder, SQLITE_PLUGIN_FOLDER);
+	);
+	await php.mkdir(dirname(pluginFolder));
+	if (await php.isDir(pluginFolder)) {
+		await php.rmdir(pluginFolder, { recursive: true });
+	}
+	await php.mv(temporarySqlitePluginFolder, pluginFolder);
 
 	// WP 5.0–6.1 compat: the SQLite plugin declares
 	// `private $allow_unsafe_unquoted_parameters` on WP_SQLite_DB and
@@ -398,7 +436,7 @@ export async function preloadSqliteIntegration(
 	// declaration to `protected` lets both class contexts reach it and
 	// leaves behaviour identical on every supported WordPress version.
 	const sqliteDbClassPath = joinPaths(
-		SQLITE_PLUGIN_FOLDER,
+		pluginFolder,
 		'wp-includes/sqlite/class-wp-sqlite-db.php'
 	);
 	if (await php.fileExists(sqliteDbClassPath)) {
@@ -414,19 +452,8 @@ export async function preloadSqliteIntegration(
 
 	// Prevents the SQLite integration from trying to call activate_plugin()
 	await php.defineConstant('SQLITE_MAIN_FILE', '1');
-	const dbCopy = await php.readFileAsText(
-		joinPaths(SQLITE_PLUGIN_FOLDER, 'db.copy')
-	);
-	const dbPhp = dbCopy
-		.replace(
-			"'{SQLITE_IMPLEMENTATION_FOLDER_PATH}'",
-			phpVar(SQLITE_PLUGIN_FOLDER)
-		)
-		.replace(
-			"'{SQLITE_PLUGIN}'",
-			phpVar(joinPaths(SQLITE_PLUGIN_FOLDER, 'load.php'))
-		);
-	const dbPhpPath = joinPaths(await php.documentRoot, 'wp-content/db.php');
+	const dbCopy = await php.readFileAsText(joinPaths(pluginFolder, 'db.copy'));
+	const dbPhpPath = joinPaths(documentRoot, 'wp-content/db.php');
 	const stopIfDbPhpExists = `
 		// Do not preload this if WordPress comes with a custom db.php file.
 		if(file_exists(${phpVar(dbPhpPath)})) {
@@ -435,14 +462,52 @@ export async function preloadSqliteIntegration(
 		`;
 	const SQLITE_MUPLUGIN_PATH =
 		'/internal/shared/mu-plugins/sqlite-database-integration.php';
-	await php.writeFile(
-		SQLITE_MUPLUGIN_PATH,
-		`<?php${stopIfDbPhpExists}?>` + dbPhp
-	);
-	await php.writeFile(
-		`/internal/shared/preload/0-sqlite.php`,
-		buildModernSqlitePreload(stopIfDbPhpExists, SQLITE_MUPLUGIN_PATH)
-	);
+
+	if (isOnDisk) {
+		const folderExpr = buildPortableSqliteFolderPhpExpr(
+			documentRoot,
+			pluginFolder
+		);
+		const dbPhp = dbCopy
+			.replace("'{SQLITE_IMPLEMENTATION_FOLDER_PATH}'", folderExpr)
+			.replaceAll(
+				"'{SQLITE_PLUGIN}'",
+				phpStringLiteral('sqlite-database-integration/load.php')
+			);
+		// Preserve a custom non-SQLite user db.php, but create or refresh
+		// Playground's SQLite drop-in so plugin upgrades stay in sync.
+		const canWriteDbPhp =
+			!(await php.fileExists(dbPhpPath)) ||
+			(await php.readFileAsText(dbPhpPath)).includes(
+				'SQLITE_DB_DROPIN_VERSION'
+			);
+		if (canWriteDbPhp) {
+			await php.mkdir(dirname(dbPhpPath));
+			await php.writeFile(dbPhpPath, dbPhp);
+		}
+		await php.writeFile(
+			`/internal/shared/preload/0-sqlite.php`,
+			buildModernSqlitePreload(stopIfDbPhpExists, SQLITE_MUPLUGIN_PATH)
+		);
+	} else {
+		const dbPhp = dbCopy
+			.replace(
+				"'{SQLITE_IMPLEMENTATION_FOLDER_PATH}'",
+				phpVar(pluginFolder)
+			)
+			.replace(
+				"'{SQLITE_PLUGIN}'",
+				phpVar(joinPaths(pluginFolder, 'load.php'))
+			);
+		await php.writeFile(
+			SQLITE_MUPLUGIN_PATH,
+			`<?php${stopIfDbPhpExists}?>` + dbPhp
+		);
+		await php.writeFile(
+			`/internal/shared/preload/0-sqlite.php`,
+			buildModernSqlitePreload(stopIfDbPhpExists, SQLITE_MUPLUGIN_PATH)
+		);
+	}
 	/**
 	 * Ensure the SQLite integration is loaded and clearly communicate
 	 * if it isn't. This is useful because WordPress database errors
@@ -458,6 +523,84 @@ export async function preloadSqliteIntegration(
 		}
 		`
 	);
+}
+
+/**
+ * Resolves the target directory and mode for the SQLite integration plugin.
+ */
+function resolveSqliteIntegrationPluginTarget(
+	documentRoot: string,
+	sqliteIntegrationPluginPath?: SqliteIntegrationPluginPath
+): { isOnDisk: boolean; pluginFolder: string } {
+	if (
+		!sqliteIntegrationPluginPath ||
+		sqliteIntegrationPluginPath === 'internal'
+	) {
+		return {
+			isOnDisk: false,
+			pluginFolder: DEFAULT_INTERNAL_SQLITE_PLUGIN_FOLDER,
+		};
+	}
+	if (sqliteIntegrationPluginPath === 'mu-plugins') {
+		return {
+			isOnDisk: true,
+			pluginFolder: joinPaths(
+				documentRoot,
+				'wp-content/mu-plugins/sqlite-database-integration'
+			),
+		};
+	}
+	if (sqliteIntegrationPluginPath === 'plugins') {
+		return {
+			isOnDisk: true,
+			pluginFolder: joinPaths(
+				documentRoot,
+				'wp-content/plugins/sqlite-database-integration'
+			),
+		};
+	}
+	const resolved = sqliteIntegrationPluginPath.startsWith('/')
+		? normalizePath(sqliteIntegrationPluginPath)
+		: joinPaths(documentRoot, sqliteIntegrationPluginPath);
+	if (!resolved || resolved === '/' || resolved === documentRoot) {
+		throw new Error(
+			`Invalid sqliteIntegrationPluginPath: "${sqliteIntegrationPluginPath}".`
+		);
+	}
+	return {
+		isOnDisk: true,
+		pluginFolder: resolved,
+	};
+}
+
+/**
+ * Builds a portable PHP expression for the SQLite plugin path inside
+ * `wp-content/db.php`, relative to `__DIR__` when inside the site directory.
+ */
+function buildPortableSqliteFolderPhpExpr(
+	documentRoot: string,
+	pluginFolder: string
+): string {
+	const wpContentDir = joinPaths(documentRoot, 'wp-content');
+	if (
+		isParentOf(wpContentDir, pluginFolder) &&
+		pluginFolder !== wpContentDir
+	) {
+		const relativeToWpContent = pluginFolder.slice(wpContentDir.length);
+		return `__DIR__ . ${phpStringLiteral(relativeToWpContent)}`;
+	}
+	if (
+		isParentOf(documentRoot, pluginFolder) &&
+		pluginFolder !== documentRoot
+	) {
+		const relativeToDocRoot = pluginFolder.slice(documentRoot.length);
+		return `dirname(__DIR__) . ${phpStringLiteral(relativeToDocRoot)}`;
+	}
+	return phpStringLiteral(pluginFolder);
+}
+
+function phpStringLiteral(value: string): string {
+	return `'${value.replaceAll('\\', '\\\\').replaceAll("'", "\\'")}'`;
 }
 
 /**

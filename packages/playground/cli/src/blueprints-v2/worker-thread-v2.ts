@@ -33,6 +33,7 @@ export type WorkerBootWordPressOptions = {
 	wordPressZip?: ArrayBuffer;
 	networking?: boolean;
 	sqliteIntegrationPluginZip?: ArrayBuffer;
+	sqliteIntegrationPluginPath?: string;
 	dataSqlPath?: string;
 	/**
 	 * PHP constants to define via php.defineConstant().
@@ -122,6 +123,7 @@ export class PlaygroundCliBlueprintV2Worker extends PHPWorker {
 			wordPressZip,
 			networking = true,
 			sqliteIntegrationPluginZip,
+			sqliteIntegrationPluginPath,
 			dataSqlPath,
 			constants,
 		} = options;
@@ -142,6 +144,7 @@ export class PlaygroundCliBlueprintV2Worker extends PHPWorker {
 								'sqlite-integration-plugin.zip'
 							)
 						: undefined,
+				sqliteIntegrationPluginPath,
 				// TODO: Are these redundant creations?
 				createFiles: {
 					'/internal/shared/ca-bundle.crt':

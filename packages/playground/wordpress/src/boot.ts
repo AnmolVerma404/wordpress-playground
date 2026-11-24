@@ -24,6 +24,7 @@ import {
 	preloadSqliteIntegration,
 	unzipWordPress,
 	wordPressRewriteRules,
+	type SqliteIntegrationPluginPath,
 } from '.';
 import { basename, dirname, joinPaths } from '@php-wasm/util';
 import { logger } from '@php-wasm/logger';
@@ -185,6 +186,13 @@ export interface BootWordPressOptions {
 	/** Preloaded SQLite integration plugin. */
 	sqliteIntegrationPluginZip?: File | Promise<File>;
 	/**
+	 * Where to place the SQLite integration plugin. Defaults to `'internal'`
+	 * (`/internal/shared/sqlite-database-integration`). Use `'mu-plugins'`,
+	 * `'plugins'`, or a custom path to write the plugin and a portable
+	 * `wp-content/db.php` drop-in on disk.
+	 */
+	sqliteIntegrationPluginPath?: SqliteIntegrationPluginPath;
+	/**
 	 * PHP constants to define for every request.
 	 */
 	constants?: Record<string, string | number | boolean | null>;
@@ -299,7 +307,11 @@ export async function bootWordPress(
 		await preloadSqliteIntegration(
 			php,
 			await options.sqliteIntegrationPluginZip,
-			{ phpVersion: options.phpVersion }
+			{
+				phpVersion: options.phpVersion,
+				sqliteIntegrationPluginPath:
+					options.sqliteIntegrationPluginPath,
+			}
 		);
 		await backportWpPreV62MysqlCheck(php, requestHandler.documentRoot);
 	}

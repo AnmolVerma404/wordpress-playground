@@ -170,6 +170,8 @@ export class BlueprintsV2Handler {
 					wordPressZip && (await wordPressZip.arrayBuffer()),
 				sqliteIntegrationPluginZip:
 					await sqliteIntegrationPluginZip?.arrayBuffer(),
+				sqliteIntegrationPluginPath:
+					this.args.sqliteIntegrationPluginPath,
 				constants: mergeDefinedConstantsForPHPVersion(
 					this.args,
 					runtimeConfiguration.phpVersion

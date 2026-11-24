@@ -148,6 +148,8 @@ export class BlueprintsV1Handler {
 					wordPressZip && (await wordPressZip!.arrayBuffer()),
 				sqliteIntegrationPluginZip:
 					await sqliteIntegrationPluginZip?.arrayBuffer(),
+				sqliteIntegrationPluginPath:
+					this.args.sqliteIntegrationPluginPath,
 				constants: mergeDefinedConstants(this.args),
 			},
 			workerPostInstallMountsPort

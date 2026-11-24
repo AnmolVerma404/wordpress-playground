@@ -297,6 +297,11 @@ export async function parseOptionsAndRunCLI(
 				type: 'boolean',
 				default: false,
 			},
+			'sqlite-integration-plugin-path': {
+				describe:
+					'Where to place the SQLite integration plugin ("internal", "mu-plugins", "plugins", or a custom path).',
+				type: 'string',
+			},
 			// Hidden - Deprecated in favor of verbosity
 			quiet: {
 				describe: 'Do not output logs and progress messages.',
@@ -899,6 +904,7 @@ export interface RunCLIArgs {
 
 	// --------- Blueprint V1 args -----------
 	skipSqliteSetup?: boolean;
+	sqliteIntegrationPluginPath?: string;
 	followSymlinks?: boolean;
 	'blueprint-may-read-adjacent-files'?: boolean;
 
