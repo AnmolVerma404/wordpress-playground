@@ -412,4 +412,32 @@ echo get_class($wpdb) . '|' . get_option('blogname');
 			).toBe(true);
 		}
 	);
+
+	it(
+		'should reject sqliteIntegrationPluginPath values that target protected WordPress directories',
+		{ timeout: 30_000 },
+		async () => {
+			for (const badPath of [
+				'/',
+				'/wordpress',
+				'wp-content',
+				'wp-content/mu-plugins',
+				'wp-content/plugins',
+			]) {
+				await expect(async () => {
+					// eslint-disable-next-line @typescript-eslint/no-unused-vars
+					await using handler = await bootWordPressAndRequestHandler({
+						createPhpRuntime: async () =>
+							await loadNodeRuntime(RecommendedPHPVersion),
+						siteUrl: 'http://playground-domain/',
+						wordPressZip: await getWordPressModule(),
+						sqliteIntegrationPluginZip:
+							await getSqliteDriverModule(),
+						sqliteIntegrationPluginPath: badPath,
+						wordpressInstallMode: 'do-not-attempt-installing',
+					});
+				}).rejects.toThrow('Invalid sqliteIntegrationPluginPath');
+			}
+		}
+	);
 });

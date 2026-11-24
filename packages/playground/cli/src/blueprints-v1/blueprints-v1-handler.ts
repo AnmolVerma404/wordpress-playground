@@ -155,9 +155,13 @@ export class BlueprintsV1Handler {
 			workerPostInstallMountsPort
 		);
 
+		const usesOnDiskSqlitePlugin =
+			Boolean(this.args.sqliteIntegrationPluginPath) &&
+			this.args.sqliteIntegrationPluginPath !== 'internal';
 		if (
 			preinstalledWpContentPath &&
 			!this.args['mount-before-install'] &&
+			!usesOnDiskSqlitePlugin &&
 			!fs.existsSync(preinstalledWpContentPath)
 		) {
 			this.cliOutput.updateProgress('Caching WordPress for next boot');

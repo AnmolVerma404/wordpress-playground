@@ -485,9 +485,15 @@ export async function preloadSqliteIntegration(
 			await php.mkdir(dirname(dbPhpPath));
 			await php.writeFile(dbPhpPath, dbPhp);
 		}
+		// WordPress loads wp-content/db.php directly from disk, so the preload
+		// only needs the mysqli_connect() stub required by WP's DB check.
 		await php.writeFile(
 			`/internal/shared/preload/0-sqlite.php`,
-			buildModernSqlitePreload(stopIfDbPhpExists, SQLITE_MUPLUGIN_PATH)
+			`<?php
+			if(!function_exists('mysqli_connect')) {
+				function mysqli_connect() {}
+			}
+			`
 		);
 	} else {
 		const dbPhp = dbCopy
@@ -532,16 +538,14 @@ function resolveSqliteIntegrationPluginTarget(
 	documentRoot: string,
 	sqliteIntegrationPluginPath?: SqliteIntegrationPluginPath
 ): { isOnDisk: boolean; pluginFolder: string } {
-	if (
-		!sqliteIntegrationPluginPath ||
-		sqliteIntegrationPluginPath === 'internal'
-	) {
+	const trimmedPath = sqliteIntegrationPluginPath?.trim();
+	if (!trimmedPath || trimmedPath === 'internal') {
 		return {
 			isOnDisk: false,
 			pluginFolder: DEFAULT_INTERNAL_SQLITE_PLUGIN_FOLDER,
 		};
 	}
-	if (sqliteIntegrationPluginPath === 'mu-plugins') {
+	if (trimmedPath === 'mu-plugins') {
 		return {
 			isOnDisk: true,
 			pluginFolder: joinPaths(
@@ -550,7 +554,7 @@ function resolveSqliteIntegrationPluginTarget(
 			),
 		};
 	}
-	if (sqliteIntegrationPluginPath === 'plugins') {
+	if (trimmedPath === 'plugins') {
 		return {
 			isOnDisk: true,
 			pluginFolder: joinPaths(
@@ -559,10 +563,17 @@ function resolveSqliteIntegrationPluginTarget(
 			),
 		};
 	}
-	const resolved = sqliteIntegrationPluginPath.startsWith('/')
-		? normalizePath(sqliteIntegrationPluginPath)
-		: joinPaths(documentRoot, sqliteIntegrationPluginPath);
-	if (!resolved || resolved === '/' || resolved === documentRoot) {
+	const resolved = trimmedPath.startsWith('/')
+		? normalizePath(trimmedPath)
+		: joinPaths(documentRoot, trimmedPath);
+	const forbiddenTargets = new Set([
+		'/',
+		documentRoot,
+		joinPaths(documentRoot, 'wp-content'),
+		joinPaths(documentRoot, 'wp-content/mu-plugins'),
+		joinPaths(documentRoot, 'wp-content/plugins'),
+	]);
+	if (!resolved || forbiddenTargets.has(resolved)) {
 		throw new Error(
 			`Invalid sqliteIntegrationPluginPath: "${sqliteIntegrationPluginPath}".`
 		);
