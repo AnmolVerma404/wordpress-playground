@@ -1,12 +1,8 @@
-import { configureStore, createSelector } from '@reduxjs/toolkit';
+import { configureStore } from '@reduxjs/toolkit';
 import uiReducer, { listenToOnlineOfflineEventsMiddleware } from './slice-ui';
 import { siteManagementMiddleware } from './site-management-api-middleware';
 import { mcpBridgeMiddleware } from './init-mcp-bridge';
-import sitesReducer, {
-	isStoredSite,
-	selectTemporarySite,
-	selectTemporarySites,
-} from './slice-sites';
+import sitesReducer from './slice-sites';
 import {
 	selectActiveSite,
 	selectActiveSiteError,
@@ -14,7 +10,7 @@ import {
 	setActiveSite,
 } from './active-site';
 import type { ClientInfo } from './slice-clients';
-import clientsReducer, { selectAllClientInfo } from './slice-clients';
+import clientsReducer from './slice-clients';
 import { useDispatch, useSelector } from 'react-redux';
 
 export {
@@ -78,8 +74,6 @@ const store = configureStore({
 			.concat(mcpBridgeMiddleware.middleware),
 });
 
-export type RootState = ReturnType<typeof store.getState>;
-
 export function useAppSelector<T>(
 	selector: (state: PlaygroundReduxState) => T
 ): T {
@@ -90,22 +84,7 @@ export function useAppDispatch() {
 	return useDispatch<PlaygroundDispatch>();
 }
 
-/**
- * Returns the active site only when it has durable storage. Autosaves count as
- * stored; callers that need an explicit save should use isExplicitlySavedSite.
- */
-export const selectActiveStoredSite = createSelector(
-	[selectActiveSite],
-	(activeSite) =>
-		activeSite && isStoredSite(activeSite) ? activeSite : undefined
-);
-
 export const useActiveSite = () => useAppSelector(selectActiveSite);
-
-/**
- * Returns the active site only when it has a durable storage backend.
- */
-export const useActiveStoredSite = () => useAppSelector(selectActiveStoredSite);
 
 const YOU_HAVE_AUTOSAVE_NUDGE_ENABLED_STORAGE_KEY =
 	'playground-you-have-autosave-nudge-enabled';
@@ -135,11 +114,6 @@ export function setYouHaveAutosaveNudgeEnabled(enabled: boolean): void {
 	}
 }
 
-/**
- * Returns the temporary site for the current browser session, when one exists.
- */
-export const useTemporarySite = () => useAppSelector(selectTemporarySite);
-
 export const getActiveClientInfo = (
 	state: PlaygroundReduxState
 ): ClientInfo | undefined =>
@@ -147,17 +121,6 @@ export const getActiveClientInfo = (
 		? state.clients.entities[state.ui.activeSite.slug]
 		: undefined;
 
-export const selectBootedTemporarySites = createSelector(
-	selectAllClientInfo,
-	selectTemporarySites,
-	(clientInfo, temporarySites) => {
-		return temporarySites.filter((site) =>
-			clientInfo.some((client) => client.siteSlug === site.slug)
-		);
-	}
-);
-
-// Define RootState type
 export type PlaygroundReduxState = ReturnType<typeof store.getState>;
 
 // Define AppDispatch type
