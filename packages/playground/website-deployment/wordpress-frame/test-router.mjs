@@ -341,8 +341,14 @@ require ${JSON.stringify(join(webRoot, 'custom-redirects.php'))};
 	// Existing app-handler contracts remain independent of Nginx-owned files.
 	for (const [path, location] of [
 		['/wordpress', 'wordpress.html'],
-		['/builder/', 'builder.html'],
-		['/builder/index.php', 'builder.html'],
+		['/builder', '/?blueprint-editor'],
+		['/builder/', '/?blueprint-editor'],
+		['/builder/index.php', '/?blueprint-editor'],
+		['/builder/builder.html', '/?blueprint-editor'],
+		[
+			'/builder/builder.html?blueprint-url=https://example.com/bp.json',
+			'/?blueprint-url=https://example.com/bp.json&blueprint-editor',
+		],
 	]) {
 		const response = await request(path, app);
 		assert.equal(response.status, 301, path);

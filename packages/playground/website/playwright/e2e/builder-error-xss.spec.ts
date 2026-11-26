@@ -1,44 +1,44 @@
 import { test, expect } from '../playground-fixtures';
 
 /**
- * Tests for the error document the Blueprint Builder renders when a Blueprint
- * fails schema validation.
- *
- * The Builder runs the Blueprint in the URL fragment on load, and schema errors
- * quote the part of it that failed, so the message is untrusted text. It
- * reaches the page through an iframe's `srcdoc` on the Playground origin, where
- * anything treated as markup would run with access to the Builder window and
- * the origin's OPFS-persisted sites. The message must therefore reach the
- * document escaped, which is what the first test asserts; the second pins the
- * iframe's `sandbox` so the second line of defense cannot be dropped silently.
+ * Verifies legacy Blueprint Builder URLs redirect to the Playground Blueprint
+ * Editor while preserving URL fragments/query params and without executing
+ * untrusted markup from an invalid Blueprint fragment.
  */
 
-test('Blueprint Builder must not execute markup from a schema error', async ({
+test('Blueprint Builder redirects to Blueprint Editor and preserves fragment without executing markup', async ({
 	page,
 }) => {
 	const payload = `<img src=x onerror="parent.document.title='xss-executed'">`;
 	const blueprint = JSON.stringify({ version: 2, [payload]: 1 });
 
-	await page.goto(`./builder/builder.html#${blueprint}`);
+	await page.goto(`./builder/builder.html#${encodeURIComponent(blueprint)}`);
 
-	const errorFrame = page.locator('#error-output');
-	// The error must actually be rendered, or the test proves nothing.
-	await expect(errorFrame).toHaveAttribute(
-		'srcdoc',
-		/must NOT have additional properties/,
-		{ timeout: 60000 }
-	);
+	await page.waitForURL((url) => url.searchParams.has('blueprint-editor'), {
+		timeout: 30000,
+	});
+	expect(new URL(page.url()).hash).toBe(`#${encodeURIComponent(blueprint)}`);
 
-	// Let the payload run before asserting that it did not.
 	await page.waitForTimeout(1000);
-
 	expect(await page.title()).not.toBe('xss-executed');
-	expect(await errorFrame.getAttribute('srcdoc')).not.toContain('<img');
 });
 
-test('Blueprint Builder error iframe keeps its sandbox', async ({ page }) => {
-	await page.goto('./builder/builder.html');
+test('Blueprint Builder redirects to Blueprint Editor preserving query params and hash', async ({
+	page,
+}) => {
+	const blueprint = JSON.stringify({
+		landingPage: '/wp-admin/plugins.php',
+		login: true,
+	});
 
-	const errorFrame = page.locator('#error-output');
-	await expect(errorFrame).toHaveAttribute('sandbox', '');
+	await page.goto(
+		`./builder/builder.html?php=8.4#${encodeURIComponent(blueprint)}`
+	);
+
+	await page.waitForURL((url) => url.searchParams.has('blueprint-editor'), {
+		timeout: 30000,
+	});
+	const redirectedUrl = new URL(page.url());
+	expect(redirectedUrl.searchParams.get('php')).toBe('8.4');
+	expect(redirectedUrl.hash).toBe(`#${encodeURIComponent(blueprint)}`);
 });

@@ -18,6 +18,10 @@ describe('initial Dock pane for filebrowser URLs', () => {
 		['?filebrowser=wp-config.php:20', true, 'files'],
 		['?filebrowser&overlay=new', true, 'files'],
 		['?filebrowser&mode=seamless', false, 'settings'],
+		['?blueprint-editor', true, 'blueprint'],
+		['?blueprint-editor&overlay=new', true, 'blueprint'],
+		['?blueprint-editor&mode=seamless', false, 'settings'],
+		['?filebrowser&blueprint-editor', true, 'files'],
 		['?overlay=new', true, 'new'],
 		['', false, 'settings'],
 	])('initializes %s', async (query, isOpen, section) => {
@@ -42,6 +46,16 @@ describe('initial Dock pane for filebrowser URLs', () => {
 	it('ignores filebrowser when embedded', async () => {
 		vi.stubGlobal('top', {});
 		window.history.replaceState({}, '', '/?filebrowser');
+		const { default: reducer } = await import('./slice-ui');
+		expect(reducer(undefined, { type: '@@INIT' })).toMatchObject({
+			dockPaneIsOpen: false,
+			dockPaneSection: 'settings',
+		});
+	});
+
+	it('ignores blueprint-editor when embedded', async () => {
+		vi.stubGlobal('top', {});
+		window.history.replaceState({}, '', '/?blueprint-editor');
 		const { default: reducer } = await import('./slice-ui');
 		expect(reducer(undefined, { type: '@@INIT' })).toMatchObject({
 			dockPaneIsOpen: false,

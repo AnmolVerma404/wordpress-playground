@@ -141,7 +141,10 @@ function playground_handle_request( $build_directory = null, $wordpress_origin =
 	//
 	// REDIRECTS
 	//
-	$redirect = playground_maybe_redirect( $requested_path );
+	$redirect = playground_maybe_redirect(
+		$requested_path,
+		isset( $url['query'] ) ? $url['query'] : null
+	);
 	if ( false !== $redirect ) {
 		// Disable edge caching because this resource may be redirected by PHP.
 		// Note: Using the header `Vary: Referer` does not seem to affect cacheability.
@@ -425,7 +428,7 @@ function playground_resolve_my_wordpress_net_index_fallback() {
 	return $resolved_path;
 }
 
-function playground_maybe_redirect( $requested_path ) {
+function playground_maybe_redirect( $requested_path, $query_string = null ) {
 	if ( str_ends_with( $requested_path, '/docs' ) ) {
 		return array(
 			'location' => 'https://wordpress.github.io/wordpress-playground/',
@@ -434,13 +437,22 @@ function playground_maybe_redirect( $requested_path ) {
 	}
 
 	if (
-		// Since `/builder/` is an actual directory,
-		// nginx redirects requests for `/builder` to `/builder/`.
+		// Redirect legacy Blueprint Builder URLs to the main Playground app
+		// with the Blueprint Editor Dock pane open, preserving query params.
+		str_ends_with( $requested_path, '/builder' ) ||
 		str_ends_with( $requested_path, '/builder/' ) ||
-		str_ends_with( $requested_path, '/builder/index.php' )
+		str_ends_with( $requested_path, '/builder/index.php' ) ||
+		str_ends_with( $requested_path, '/builder/builder.html' )
 	) {
+		$location = '/?blueprint-editor';
+		if ( is_string( $query_string ) && '' !== $query_string ) {
+			parse_str( $query_string, $query_params );
+			$location = array_key_exists( 'blueprint-editor', $query_params )
+				? '/?' . $query_string
+				: '/?' . $query_string . '&blueprint-editor';
+		}
 		return array(
-			'location' => 'builder.html',
+			'location' => $location,
 			'status' => 301
 		);
 	}

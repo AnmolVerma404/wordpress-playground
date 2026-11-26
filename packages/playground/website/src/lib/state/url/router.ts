@@ -28,6 +28,7 @@ export interface QueryAPIParams {
 	'blueprint-url'?: string;
 	'page-title'?: string;
 	filebrowser?: string;
+	'blueprint-editor'?: string;
 }
 
 /**
@@ -114,6 +115,7 @@ export class PlaygroundRoute {
 				'url',
 				'page-title',
 				'filebrowser',
+				'blueprint-editor',
 				'mcp',
 				'mcp-port',
 				'can-save',

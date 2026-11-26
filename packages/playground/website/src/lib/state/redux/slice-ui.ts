@@ -6,6 +6,7 @@ import type { ProgressDetails } from '@php-wasm/progress';
 import { BlueprintStepExecutionError } from '@wp-playground/blueprints';
 import { BREAKPOINTS } from '../../constants/breakpoints';
 import { shouldUseFileBrowserQuery } from '../url/filebrowser-query';
+import { shouldUseBlueprintEditorQuery } from '../url/blueprint-editor-query';
 
 export type SiteError =
 	| 'directory-handle-not-found-in-indexeddb'
@@ -207,6 +208,10 @@ const useFileBrowserQuery = shouldUseFileBrowserQuery(
 	query,
 	isEmbeddedInAnIframe
 );
+const useBlueprintEditorQuery = shouldUseBlueprintEditorQuery(
+	query,
+	isEmbeddedInAnIframe
+);
 
 const initialState: UIState = {
 	/**
@@ -237,6 +242,7 @@ const initialState: UIState = {
 		// The Dock pane should not be shown at all in seamless mode.
 		query.get('mode') !== 'seamless' &&
 		(useFileBrowserQuery ||
+			useBlueprintEditorQuery ||
 			!!cloneSiteUrl ||
 			query.get('overlay') !== null ||
 			(shouldOpenDockPaneByDefault &&
@@ -250,12 +256,14 @@ const initialState: UIState = {
 		? 'transfer'
 		: useFileBrowserQuery
 			? 'files'
-			: query.get('overlay') === 'blueprints' ||
-				  query.get('overlay') === 'new'
-				? 'new'
-				: query.get('overlay') !== null
-					? 'playgrounds'
-					: 'settings',
+			: useBlueprintEditorQuery
+				? 'blueprint'
+				: query.get('overlay') === 'blueprints' ||
+					  query.get('overlay') === 'new'
+					? 'new'
+					: query.get('overlay') !== null
+						? 'playgrounds'
+						: 'settings',
 	cloneRequested: cloneSiteUrl ? { url: cloneSiteUrl } : undefined,
 };
 
