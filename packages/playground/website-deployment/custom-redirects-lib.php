@@ -439,10 +439,10 @@ function playground_maybe_redirect( $requested_path, $query_string = null ) {
 	if (
 		// Redirect legacy Blueprint Builder URLs to the main Playground app
 		// with the Blueprint Editor Dock pane open, preserving query params.
-		str_ends_with( $requested_path, '/builder' ) ||
-		str_ends_with( $requested_path, '/builder/' ) ||
-		str_ends_with( $requested_path, '/builder/index.php' ) ||
-		str_ends_with( $requested_path, '/builder/builder.html' )
+		'/builder' === $requested_path ||
+		'/builder/' === $requested_path ||
+		'/builder/index.php' === $requested_path ||
+		'/builder/builder.html' === $requested_path
 	) {
 		$location = '/?blueprint-editor';
 		if ( is_string( $query_string ) && '' !== $query_string ) {
@@ -627,7 +627,6 @@ function playground_get_custom_response_headers( $requested_path ) {
 	} elseif (
 		'/' === $requested_path ||
 		'/index.html' === $requested_path ||
-		'/builder/builder.html' === $requested_path ||
 		'/api.html' === $requested_path
 	) {
 		return array( 'Cache-Control: max-age=0, no-cache, no-store, must-revalidate' );
